@@ -94,17 +94,12 @@ print("ok" if ans == expected else "--------------FAILED--------------")
 
 ###############################################################
 
-def byte_to_ascii(byte):
-	index = bits_to_int(byte)
-	return chr(index)
-	
-
 def bits_to_ascii(bits):
+	assert(len(bits)%8 == 0)
 	answer = ""
 	for i in range(0,len(bits)//8):
-		answer += byte_to_ascii(bits[8*i:8*(i+1)])
+		answer += chr(bits_to_int(bits[8*i:8*(i+1)]))
 	return answer
-
 
 def apply_xor_to_char(c, key):
 	cBits = hexChar_to_bits(c)
@@ -112,12 +107,12 @@ def apply_xor_to_char(c, key):
 	result = [cBits[i]^keyBits[i] for i in range(len(cBits))]
 	return bits_to_hex(result)
 
-def apply_xor_to_string(string, key, mod):
-	bits = hex_to_bits(string)
-	keyBits = int_to_bits(key,mod)
+def apply_repeatedXor(bits, key): # key must be an array of bits
+	response = [0 for _ in range(len(bits))]
+	keyLength = len(key)
 	for i in range(len(bits)):
-		bits[i] ^= keyBits[i%mod]
-	return bits_to_ascii(bits)
+		response[i] = bits[i] ^ key[i%keyLength]
+	return response
 
 letterFrequency = {
 	'E' : 12.0,
@@ -152,20 +147,21 @@ letterFrequency = {
 for key, value in letterFrequency.items():
 	letterFrequency[key] /= 100
 
-def letter_frequency_metric(sentence):
+def letter_frequency_metric(bits):
 	appearances = {' ' : 0}
 	for c in range(oA,oZ+1):
 		appearances[chr(c)] = 0
-	penalty = 0 # non-letter characters
-	l = len(sentence)
-	for c in sentence:
-		index = ord(c)
+	penalty = 0.0 # non-letter characters
+	l = len(bits)
+	assert(l%8 == 0)
+	for i in range(0,l//8):
+		index = bits_to_int(bits[8*i:8*(i+1)])
 		if index in range(oa,oz+1):
 			appearances[chr(index-oa+oA)] += 1/l
 		elif index in range(oA,oZ+1):
-			appearances[c] += 1/l
-		elif index == 32:
-			appearances[c] += 1/l
+			appearances[chr(index)] += 1/l
+		elif index == 32: # c == ' '
+			appearances[chr(index)] += 1/l
 		elif index in range(o0,o9+1):
 			# continue
 			penalty += 1/(l)
@@ -176,15 +172,16 @@ def letter_frequency_metric(sentence):
 	return penalty
 
 def challenge3_guess_xor_key(hash):
+	hashBits = hex_to_bits(hash)
 	bestPenalty = 10000000000000
 	bestKey = ''
 	for i in range(256):
-		guess = apply_xor_to_string(hash,i,8)
+		guess = apply_repeatedXor(hashBits,int_to_bits(i))
 		guessPenalty = letter_frequency_metric(guess)
 		if guessPenalty < bestPenalty:
 			bestPenalty = guessPenalty
 			bestKey = i
-	return (bestKey, apply_xor_to_string(hash,bestKey,8))
+	return (bestKey, bits_to_ascii(apply_repeatedXor(hashBits,int_to_bits(bestKey))))
 
 
 print("Set 1, Challenge 3:")
@@ -192,33 +189,33 @@ print("ok" if challenge3_guess_xor_key("1b37373331363f78151b7f2b783431333d783978
 
 #########################################################################################
 
-def challenge4_find_message():
-	with open('s1c4') as f:
-	    sentences = f.readlines()
-	# for i in range(len(sentences)):
-	# 	sentences[i] = sentences[i][0:-1] # Erase the trailing line break
-	bestPenalty = 10000000000000
-	bestIndex = -1
-	bestKey = ''
-	for i in range(len(sentences)):
-		guess = challenge3_guess_xor_key(sentences[i])
-		penalty = letter_frequency_metric(guess[1])
-		if penalty < bestPenalty:
-			bestPenalty = penalty
-			bestIndex = i
-			bestKey = guess[0]
-	return (bestIndex, bestKey, apply_xor_to_string(sentences[bestIndex],bestKey,8))
-	
-print("Set 1, Challenge 4:")
-# print("ok" if challenge4_find_message() == (170, 53, 'Now that the party is jumping\n') else "--------------FAILED--------------")
-
-############################################################################################
-
 def string_to_bits(string):
 	bits = []
 	for c in string:
 		bits += int_to_bits(ord(c),8)
 	return bits
+
+def challenge4_find_message():
+	with open('s1c4') as f:
+	    sentences = f.readlines()
+	for i in range(len(sentences)):
+		sentences[i] = sentences[i].replace("\n","") # Erase the trailing line break
+	bestPenalty = 10000000000000
+	bestIndex = -1
+	bestKey = ''
+	for i in range(len(sentences)):
+		guess = challenge3_guess_xor_key(sentences[i])
+		penalty = letter_frequency_metric(string_to_bits(guess[1]))
+		if penalty < bestPenalty:
+			bestPenalty = penalty
+			bestIndex = i
+			bestKey = guess[0]
+	return (bestIndex, bestKey, bits_to_ascii(apply_repeatedXor(hex_to_bits(sentences[bestIndex]),int_to_bits(bestKey))))
+	
+print("Set 1, Challenge 4:")
+print("ok" if challenge4_find_message() == (170, 53, 'Now that the party is jumping\n') else "--------------FAILED--------------")
+
+############################################################################################
 
 def apply_repeatingKey_xor_to_string(message,key):
 	l = len(key)
@@ -301,7 +298,11 @@ def challenge6_break_repeating_key_xor():
 		blocks[i%bestKeysize] += message[8*i:8*(i+1)]
 	encryptionKey = ""
 	for i in range(bestKeysize):
+		print(len(blocks[i]))
+		print(len(bits_to_ascii(blocks[i]))%8)
+		print(len(bits_to_ascii(blocks[i])))
 		decryption = challenge3_guess_xor_key(bits_to_ascii(blocks[i]))
+		# print(bits_to_ascii(blocks[i]))
 		print(decryption)
 		encryptionKey += chr(decryption[0])
 	print("the encryptionKey is:", encryptionKey)
