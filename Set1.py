@@ -175,7 +175,8 @@ def letter_frequency_metric(bits):
 		penalty += abs(value-appearances[key])#**2
 	return penalty
 
-def guess_xor_key(hashBits):
+def guess_xor_key_by_frequency(hashBits):
+	# This is the proposed technique to guess the key by punctuating each possible key by the expected frequency of each letter in the english alphabet
 	bestPenalty = 10000000000000
 	bestKey = []
 	for i in range(256):
@@ -187,8 +188,22 @@ def guess_xor_key(hashBits):
 			bestKey = key
 	return (bestKey, apply_repeatedXor(hashBits,bestKey))
 
+def guess_xor_key_by_space(message):
+	# This technique tries to find the key of a message by assuming that the most common character in a message is a space
+	counter = [0 for i in range(256)]
+	for i in range(len(message)//8):
+		counter[bits_to_int(message[8*i:8*(i+1)])] += 1
+	moreCommonChar = -1
+	appearances = -1
+	for i in range(256):
+		if appearances < counter[i]:
+			appearances = counter[i]
+			moreCommonChar = i
+	key = int_to_bits(moreCommonChar ^ ord(' '))
+	return (key,apply_repeatedXor(message,key))
+
 def challenge3_guess_xor_key(hash):
-	guess = guess_xor_key(hex_to_bits(hash))
+	guess = guess_xor_key_by_space(hex_to_bits(hash))
 	return (bits_to_int(guess[0]),bits_to_ascii(guess[1]))
 
 
@@ -213,7 +228,7 @@ def challenge4_find_message():
 	bestKey = ''
 	for i in range(len(sentences)):
 		sentenceBits = hex_to_bits(sentences[i])
-		guess = guess_xor_key(sentenceBits)
+		guess = guess_xor_key_by_space(sentenceBits)
 		penalty = letter_frequency_metric(guess[1])
 		if penalty < bestPenalty:
 			bestPenalty = penalty
@@ -270,6 +285,10 @@ def base64_to_bits(string):
 		bits = bits[0:-2]
 	return bits
 
+def bytes_to_ints(bits):
+	assert(len(bits)%8 == 0)
+	return [bits_to_int(bits[8*i:8*(i+1)]) for i in range(len(bits)//8)]
+
 def hamming_distance_bits(bits1,bits2):
 	counter = 0
 	l1 = len(bits1)
@@ -283,10 +302,15 @@ def hamming_distance_strings(string1,string2):
 
 assert(hamming_distance_strings("this is a test","wokka wokka!!!") == 37)
 
-def find_best_keysize(message):
+MAX_KEYSIZE = 41
+
+def find_best_keysize_by_hamming_distance(message):
+	# This is the proposed way of finding the keysize by taking hamming distance between consecutive blocks of keysize bytes.
+	# This works because the expected value of the hamming distance of two chars of a coherent english sentence is less than the expected value of the HD of two "random" characters because in the english alphabet some letters are more frequent than others.
+	# It's also important to mention that this works because HD(A^C,B^C) = HD(A,B)
 	bestKeysize = -1
 	bestHammingDistance = 1000000000000000
-	for keysize in range(1,41): # tiene sentido probar con 1?
+	for keysize in range(1,MAX_KEYSIZE):	
 		currentDistance = 0
 		# len(message)//8 is the number of bytes, len(message)//(8*keysize) is the number of disjoint blocks of keysize bytes
 		for i in range(1,len(message)//(8*keysize)):
@@ -296,6 +320,7 @@ def find_best_keysize(message):
 			bestHammingDistance = currentDistance
 			bestKeysize = keysize
 	return bestKeysize
+	
 	# This is a way of finding the keysize that is not very effective but a bit curious. It states that the keysize is equal to the gcd of the all the differences of position of equal bytes.
 	# The logic behind this is that if we have two equal bytes, it its probable that they are equal because they were the same letter before the encryption AND they are in positions with the same remainder modulo keysize.
 	# This is not very reliable when the message is long because having a colission of type A^B = C^D breaks the logic
@@ -315,43 +340,57 @@ def find_best_keysize(message):
 	return keysize
 	'''
 
-def guess_xor_key_by_space(message):
-	# This technique tries to find the key of a message by assuming that the most common character in a message is a space
-	counter = [0 for i in range(256)]
-	for i in range(len(message)//8):
-		counter[bits_to_int(message[8*i:8*(i+1)])] += 1
-	moreCommonChar = -1
-	appearances = -1
-	for i in range(256):
-		if appearances < counter[i]:
-			appearances = counter[i]
-			moreCommonChar = i
-	key = int_to_bits(moreCommonChar ^ ord(' '))
-	return (key,apply_repeatedXor(message,key))
+def find_best_keysize_by_index_of_coincidence(message):
+	# This technique finds the best keysize by analyzing the index of coincidence of each keysize.
+	# Greater index means more probability of being the correct keysize because the index of a monoalphabetic encryption is greater than the index of a polyalphabetic encrytption,
+	# and the correct keysize is the one that makes each block a monoalphabetic enryption (the one that corresponds with that character of the key).
+	# That is, the correct keylength l is the one that makes the text containing all the characters at positions with reminder x mod l (for any x) a single-char xor encryption, which character distribution will be similar to the english distribution and not one random (in xor encryptions with longer keys, the distribution of characters tend to be more random and therefore the index of coincidence tends to be lower). More info here https://www.youtube.com/watch?v=-v6AuD6U2lk
+	bestKeysize = -1
+	bestIndex = -1
+	for keysize in range(1,MAX_KEYSIZE):
+		l = len(message)
+		assert(l%8 == 0)
+		l //= 8
+		currentIndex = 0
+		blocks = [[] for _ in range(keysize)]
+		for i in range(l):
+			blocks[i%keysize].append(bits_to_int(message[8*i:8*(i+1)]))
+		for i in range(keysize):
+			counter = [0 for _ in range(256)]
+			for n in blocks[i]:
+				counter[n] += 1
+			for j in range(256):
+				currentIndex += (counter[j]/l)**2
+		currentIndex //= keysize
+		print(keysize,currentIndex)
+		if currentIndex < bestIndex:
+			bestIndex = currentIndex
+			bestKeysize = keysize
+	return keysize
 
-def bytes_to_ints(bits):
-	assert(len(bits)%8 == 0)
-	return [bits_to_int(bits[8*i:8*(i+1)]) for i in range(len(bits)//8)]
+
+
 
 def challenge6_break_repeating_key_xor():
 	with open('s1c6') as f:
 	    stringMessage = f.read().replace('\n',"")
 	message = base64_to_bits(stringMessage)
 	assert(len(message)%8 == 0)
-	keysize = find_best_keysize(message)
+	keysize = find_best_keysize_by_index_of_coincidence(message)
 	blocks = [[] for i in range(keysize)]
 	for i in range(len(message)//8):
 		blocks[i%keysize] += message[8*i:8*(i+1)]
 	encryptionKey = []
 	for i in range(keysize):
 		copy = blocks[i]
-		# decryption = guess_xor_key(blocks[i])
 		decryption = guess_xor_key_by_space(blocks[i])
 		assert(copy == blocks[i])
 		encryptionKey += decryption[0]
 	# print("the encryptionKey is:", bits_to_ascii(encryptionKey), f"({len(bits_to_ascii(encryptionKey))})")
-	return bits_to_ascii(apply_repeatedXor(message,encryptionKey))
+	return (bits_to_ascii(encryptionKey), bits_to_ascii(apply_repeatedXor(message,encryptionKey)))
+
+expected_s1c6 = ('Terminator X: Bring the noise', "I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n")
 
 print("Set 1, Challenge 6:")
-print("the result of the challenge is:")
-print(challenge6_break_repeating_key_xor())
+print("ok" if challenge6_break_repeating_key_xor() == expected_s1c6 else "--------------FAILED--------------")
+print(len(challenge6_break_repeating_key_xor()[0]))
