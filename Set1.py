@@ -390,3 +390,21 @@ expected_s1c6 = ('Terminator X: Bring the noise', "I'm back and I'm ringin' the 
 
 print("Set 1, Challenge 6:")
 print("ok" if challenge6_break_repeating_key_xor() == expected_s1c6 else "--------------FAILED--------------")
+
+###########################################################################################
+
+def challenge7_decrypt_message(key):
+	with open('s1c7') as f:
+	    stringMessage = f.read().replace('\n',"")
+	message = base64_to_bits(stringMessage)
+	return key
+
+print("Set 1, Challenge 7:")
+print(challenge7_decrypt_message("YELLOW SUBMARINE"))
+# print("ok" if challenge7_decrypt_message("YELLOW SUBMARINE") == expected_s1c7 else "--------------FAILED--------------")
+
+# Note: you can decrypt the message with the following command line
+# openssl aes-128-ecb -d -a -in s1c7 -K  $(echo -n "YELLOW SUBMARINE" | hexdump -v -e '/1 "%02X"')
+# or
+# openssl aes-128-ecb -d -a -K 59454c4c4f57205355424d4152494e45 -in s1c7
+# (59454c4c4f57205355424d4152494e45 is the hex encoding for "YELLOW SUBMARINE")
