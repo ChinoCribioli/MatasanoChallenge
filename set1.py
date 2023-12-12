@@ -402,10 +402,8 @@ def bits_to_bytes(bits):
 	return bytesList
 
 def add_round_key(bytesBlock,key):
-	assert(len(bytesBlock) == len(key) and len(key) == 16)
-	for i in range(16):
-		bytesBlock[i] ^= key[i]
-	return bytesBlock
+	assert(len(bytesBlock) == len(key))
+	return [bytesBlock[i] ^ key[i] for i in range(len(key))]
 
 lookupTable = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01,   0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -445,15 +443,16 @@ inverseLookupTable = [
 ]
 
 def sub_bytes(bytesBlock, inv):
-    for i in range(len(bytesBlock)):
-        bytesBlock[i] = lookupTable[bytesBlock[i]] if inv == 1 else inverseLookupTable[bytesBlock[i]]
-    return bytesBlock
+	newBytes = [0 for _ in range(len(bytesBlock))]
+	for i in range(len(bytesBlock)):
+		newBytes[i] = lookupTable[bytesBlock[i]] if inv == 1 else inverseLookupTable[bytesBlock[i]]
+	return newBytes
 
 test = [0,1,2,254,255]
-sub_bytes(test,1)
+test = sub_bytes(test,1)
 assert(test == [99, 124, 119, 187, 22])
 test = [0,1,2,254,255]
-sub_bytes(test,-1)
+test = sub_bytes(test,-1)
 assert(test == [82, 9, 106, 12, 125])
 
 def shift_rows(bytesBlock,inv):
@@ -521,17 +520,50 @@ assert(test == [142, 77, 161, 188, 159, 220, 88, 157, 1, 1, 1, 1, 77, 126, 189, 
 test = mix_columns(test,-1)
 assert(test == [219, 19, 83, 69, 242, 10, 34, 92, 1, 1, 1, 1, 45, 38, 49, 76])
 
+roundConstant = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
+
+def new_round_seed(word, roundNumber): # Recieves a word of 4 bytes
+	assert(len(word) == 4)
+	newWord = [word[(i+1)%4] for i in range(4)]
+	newWord = sub_bytes(newWord,1)
+	newWord[0] ^= roundConstant[roundNumber]
+	return newWord
+
+def generate_round_keys(key):
+	roundkeys = [key]
+	for i in range(10):
+		newKey = []
+		newKey += add_round_key(new_round_seed(roundkeys[i][12:16],i),roundkeys[i][0:4])
+		newKey += add_round_key(newKey[0:4],roundkeys[i][4:8])
+		newKey += add_round_key(newKey[4:8],roundkeys[i][8:12])
+		newKey += add_round_key(newKey[8:12],roundkeys[i][12:16])
+		roundkeys.append(newKey)
+	return roundkeys
+
 def challenge7_decrypt_message(key):
 	with open('s1c7') as f:
 	    stringMessage = f.read().replace('\n',"")
 	message = bits_to_bytes(base64_to_bits(stringMessage))
 	k = bits_to_bytes(string_to_bits(key))
-	return k
+	roundKeys = generate_round_keys(k)
+	decryptedMessage = []
+	assert(len(message)%16 == 0)
+	for i in range(len(message)//16):
+		block = message[16*i:16*(i+1)]
+		for j in range(10,0,-1):
+			block = add_round_key(block,roundKeys[j])
+			if j != 10:
+				block = mix_columns(block,-1)
+			block = shift_rows(block,-1)
+			block = sub_bytes(block,-1)
+		block = add_round_key(block,roundKeys[0])
+		decryptedMessage += block
+	return "".join([chr(b) for b in decryptedMessage])
 
 
 print("Set 1, Challenge 7:")
-# print(challenge7_decrypt_message("YELLOW SUBMARINE"))
-# print("ok" if challenge7_decrypt_message("YELLOW SUBMARINE") == expected_s1c7 else "--------------FAILED--------------")
+expected_s1c7 = "I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n\x04\x04\x04\x04"
+print("ok" if challenge7_decrypt_message("YELLOW SUBMARINE") == expected_s1c7 else "--------------FAILED--------------")
 
 # Note: you can decrypt the message with the following command line
 # openssl aes-128-ecb -d -a -in s1c7 -K  $(echo -n "YELLOW SUBMARINE" | hexdump -v -e '/1 "%02X"')
@@ -541,13 +573,7 @@ print("Set 1, Challenge 7:")
 
 # Here's an example implementation: https://github.com/halloweeks/AES-128-ECB/tree/main
 
-
-
-
-
-
-
-
 ###########################################################################################
 
 # if challenge 8 becomes too hard, here's a help: https://wgallagher86.medium.com/aes-128-ecb-mode-in-go-75bd59b74541
+
