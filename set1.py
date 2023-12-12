@@ -476,21 +476,20 @@ invMixCol = [
 	[11,13,9,14]
 ]
 
-def fieldMult(a,b):
+def fieldMult(a,b): # Reemplazar esto por la mult del cuerpo
+	
 	return a*b
 
-def mix_columns(bytes,inv): # Terminar de testear esto
+def mix_columns(bytes,inv):
 	newBytes = []
 	for i in range(4):
 		col = [0,0,0,0]
 		for j in range(4):
 			for k in range(4):
-				col[k] += fieldMult(mixCol[i][j] if inv == 1 else invMixCol[i][j],bytes[4*i+k])
+				col[j] ^= fieldMult(mixCol[j][k] if inv == 1 else invMixCol[j][k],bytes[4*i+k])
 		newBytes += col
 	bytes = newBytes
 	return newBytes
-
-print(mix_columns([3,4,5,6,0,0,0,0,0,0,0,0,0,0,0,0],1))
 
 def challenge7_decrypt_message(key):
 	with open('s1c7') as f:
