@@ -396,15 +396,16 @@ print("ok" if challenge6_break_repeating_key_xor() == expected_s1c6 else "------
 def bits_to_bytes(bits):
 	l = len(bits)
 	assert(l%8 == 0)
-	bytes = []
+	bytesList = []
 	for i in range(l//8):
-		bytes.append(bits_to_int(bits[8*i:8*(i+1)]))
-	return bytes
+		bytesList.append(bits_to_int(bits[8*i:8*(i+1)]))
+	return bytesList
 
-def add_round_key(bytes,key):
-	assert(len(bytes) == len(key))
+def add_round_key(bytesBlock,key):
+	assert(len(bytesBlock) == len(key) and len(key) == 16)
 	for i in range(16):
-		bytes[i] ^= key[i]
+		bytesBlock[i] ^= key[i]
+	return bytesBlock
 
 lookupTable = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01,   0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -443,10 +444,10 @@ inverseLookupTable = [
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 ]
 
-def sub_bytes(bytes, inv):
-    for i in range(len(bytes)):
-        bytes[i] = lookupTable[bytes[i]] if inv == 1 else inverseLookupTable[bytes[i]]
-    return bytes
+def sub_bytes(bytesBlock, inv):
+    for i in range(len(bytesBlock)):
+        bytesBlock[i] = lookupTable[bytesBlock[i]] if inv == 1 else inverseLookupTable[bytesBlock[i]]
+    return bytesBlock
 
 test = [0,1,2,254,255]
 sub_bytes(test,1)
@@ -455,12 +456,20 @@ test = [0,1,2,254,255]
 sub_bytes(test,-1)
 assert(test == [82, 9, 106, 12, 125])
 
-def shift_rows(bytes,inv):
+def shift_rows(bytesBlock,inv):
 	assert(inv == 1 or inv == -1) # this tells us if we want to encrypt or decrypt
 	newBytes = [0 for _ in range(16)]
-	for r in range(1,4):
+	for r in range(4):
 		for i in range(4):
-			newBytes[(4*i+r -4*r*inv +16)%16] = bytes[4*i+r]
+			newBytes[(4*i+r -4*r*inv +16)%16] = bytesBlock[4*i+r]
+	return newBytes
+
+test = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+test = shift_rows(test,1)
+assert(test == [0,5,10,15,4,9,14,3,8,13,2,7,12,1,6,11])
+test = shift_rows(test,-1)
+assert(test == [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+
 
 mixCol = [
 	[2,3,1,1],
@@ -476,20 +485,41 @@ invMixCol = [
 	[11,13,9,14]
 ]
 
-def fieldMult(a,b): # Reemplazar esto por la mult del cuerpo
-	
-	return a*b
+def fieldMult(a,b):
+	aP = int_to_bits(a) # Polynomial that a represents
+	bP = int_to_bits(b) # Polynomial that b represents
+	result = [0 for _ in range(15)]
+	for i in range(8):
+		for j in range(8):
+			result[i+j] ^= aP[i]*bP[j] # perform polynomial multiplication
+	# take reminder modulo x^8+x^4+x^3+x+1, which is 100011011
+	mod = [1,0,0,0,1,1,0,1,1]
+	for i in range(7):
+		if result[i]:
+			for j in range(9):
+				result[i+j] ^= mod[j]
+	return bits_to_int(result)
 
-def mix_columns(bytes,inv):
+assert(fieldMult(0x53,0xca) == 1)
+assert(fieldMult(0xd4,0x0d) == 0x53)
+assert(fieldMult(0xe1,0x0e) == 0x39)
+
+def mix_columns(bytesBlock,inv):
 	newBytes = []
 	for i in range(4):
 		col = [0,0,0,0]
 		for j in range(4):
 			for k in range(4):
-				col[j] ^= fieldMult(mixCol[j][k] if inv == 1 else invMixCol[j][k],bytes[4*i+k])
+				col[j] ^= fieldMult(mixCol[j][k] if inv == 1 else invMixCol[j][k],bytesBlock[4*i+k])
 		newBytes += col
-	bytes = newBytes
+	bytesBlock = newBytes
 	return newBytes
+
+test = [219, 19, 83, 69, 242, 10, 34, 92, 1, 1, 1, 1, 45, 38, 49, 76]
+test = mix_columns(test,1)
+assert(test == [142, 77, 161, 188, 159, 220, 88, 157, 1, 1, 1, 1, 77, 126, 189, 248])
+test = mix_columns(test,-1)
+assert(test == [219, 19, 83, 69, 242, 10, 34, 92, 1, 1, 1, 1, 45, 38, 49, 76])
 
 def challenge7_decrypt_message(key):
 	with open('s1c7') as f:
