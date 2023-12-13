@@ -540,6 +540,9 @@ def generate_round_keys(key):
 		roundkeys.append(newKey)
 	return roundkeys
 
+def bytes_to_string(bytesList):
+	return "".join([chr(b) for b in bytesList])
+
 def challenge7_decrypt_message(key):
 	with open('s1c7') as f:
 	    stringMessage = f.read().replace('\n',"")
@@ -558,7 +561,7 @@ def challenge7_decrypt_message(key):
 			block = sub_bytes(block,-1)
 		block = add_round_key(block,roundKeys[0])
 		decryptedMessage += block
-	return "".join([chr(b) for b in decryptedMessage])
+	return bytes_to_string(decryptedMessage)
 
 
 print("Set 1, Challenge 7:")
@@ -575,5 +578,23 @@ print("ok" if challenge7_decrypt_message("YELLOW SUBMARINE") == expected_s1c7 el
 
 ###########################################################################################
 
-# if challenge 8 becomes too hard, here's a help: https://wgallagher86.medium.com/aes-128-ecb-mode-in-go-75bd59b74541
+def challenge8_find_ecb_encrypted_ciphertext():
+	with open('s1c8') as f:
+	    hexTexts = f.readlines()
+	res = []
+	texts = [bits_to_bytes(hex_to_bits(hexText.replace('\n',''))) for hexText in hexTexts]
+	for t in range(len(texts)):
+		text = texts[t]
+		blocks = {}
+		for i in range(len(text)//16):
+			block = bytes_to_string(text[16*i:16*(i+1)])
+			if blocks.get(block) != None :
+				res.append(t)
+				break
+			blocks[block] = 1
+	return res
 
+
+print("Set 1, Challenge 8:")
+expected_s1c8 = [132]
+print("ok" if challenge8_find_ecb_encrypted_ciphertext() == expected_s1c8 else "--------------FAILED--------------")
