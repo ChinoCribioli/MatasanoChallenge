@@ -1,9 +1,12 @@
 from set1 import *
 
-def challenge9_pad_block(block,desiredLength):
+def challenge9_pad_block(block, desiredLength, asString = True): # asString is True when the parameters as passed as string and False when passed as lists
 	assert(len(block) <= desiredLength)
 	padding = desiredLength - len(block)
-	c = chr(padding)
+	if asString:
+		c = chr(padding)
+	else:
+		c = [padding]
 	return block + c*padding
 
 # print("Set 2, Challenge 9:")
@@ -60,6 +63,52 @@ def challenge11_guess_black_box(numberOfExperiments):
 		assert(guess == ("CBC" if mode else "ECB"))
 
 # print("Set 2, Challenge 11:")
-# challenge11_guess_black_box(50) # el problema es que cuando toca cbc, la encriptacion genera que el segundo y el tercer bloque sean iguales
+# challenge11_guess_black_box(100) # el problema es que cuando toca cbc, la encriptacion genera que el segundo y el tercer bloque sean iguales
 # print("ok")
 
+#################################################################################################
+
+randomKey = "".join([chr(randint(0,255)) for _ in range(16)])
+givenText = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK"
+givenText = bits_to_ascii(base64_to_bits(givenText))
+
+def targetEncryptionFunction(message):
+	messageCopy = message + givenText
+	if len(messageCopy) % 16 != 0:
+		messageCopy = challenge9_pad_block(messageCopy,len(messageCopy)+16-(len(messageCopy)%16))
+	return aes128(messageCopy,randomKey,1)
+
+def find_size_of_cipher(fun):
+	initialLen = len(fun(""))
+	for i in range(17):
+		currentLen = len(fun("0"*i))
+		if currentLen > initialLen:
+			return initialLen - (i-1)
+
+def challenge12_find_unknown_string():
+	assert(find_size_of_cipher(targetEncryptionFunction) == len(givenText))
+	assert(guess_encryption_type(targetEncryptionFunction) == "ECB")
+	cipherLen = find_size_of_cipher(targetEncryptionFunction)
+	recoveredBytes = []
+	for i in range(cipherLen): # this part complies the following invariant: "we already recovered the first i characters of the givenText"
+		print(f"step {i}")
+		assert(i == len(recoveredBytes))
+		blockReminder = (-1-i)%16
+		baitBlock = "A" * blockReminder # Now, baitBlock will have a length such that the baitBlock + the already recovered text is congruent to -1 modulo 16, so we will be able to peel the next character of the givenText analyzing the last block of this part of the message
+		relB = (len(baitBlock)+i)//16 # relB stands for relevantBlock: this is the block we have to look to compare the bait with the actual givenText
+		recoveredText = bytes_to_string(recoveredBytes)
+		baitResult = targetEncryptionFunction(baitBlock)[16*relB:16*(relB+1)]
+		for c in range(256):
+			if targetEncryptionFunction(baitBlock + recoveredText + chr(c))[16*relB:16*(relB+1)] == baitResult:
+				recoveredBytes.append(c)
+				print(bytes_to_string(recoveredBytes))
+				break
+	return bytes_to_string(recoveredBytes)
+
+
+print("Set 2, Challenge 12:")
+expected_s2c12 = "Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n"
+print("ok" if challenge12_find_unknown_string() == expected_s2c12 else "--------------FAILED--------------")
+
+
+#### TODO: refactorar lo de "rellenar hasta tener len multiplo de 16"
