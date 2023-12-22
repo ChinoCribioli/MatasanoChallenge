@@ -28,14 +28,18 @@ def challenge10_decrypt_cbc(key,ivString):
 
 #################################################################################################
 
+def pad_message(message):
+	r = 16-(len(message)%16)
+	r = 0 if r == 16 else r
+	return challenge9_pad_block(message,len(message)+r)
+
 from random import randint
 
 def random_encrypt_ecb(message):
 	key = "".join([chr(randint(0,255)) for _ in range(16)])
 	message = "".join([chr(randint(0,255)) for _ in range(randint(5,10))]) + message # add 5 to 10 random bytes at the beginning
 	message += "".join([chr(randint(0,255)) for _ in range(randint(5,10))]) # append 5 to 10 random bytes at the end
-	if len(message) % 16 != 0:
-		message = challenge9_pad_block(message,len(message)+16-(len(message)%16))
+	message = pad_message(message)
 	return aes128(message,key,1)
 
 def random_encrypt_cbc(message):
@@ -43,8 +47,7 @@ def random_encrypt_cbc(message):
 	iv = [chr(randint(0,255)) for _ in range(16)]
 	message = "".join([chr(randint(0,255)) for _ in range(randint(5,10))]) + message # add 5 to 10 random bytes at the beginning
 	message += "".join([chr(randint(0,255)) for _ in range(randint(5,10))]) # append 5 to 10 random bytes at the end
-	if len(message) % 16 != 0:
-		message = challenge9_pad_block(message,len(message)+16-(len(message)%16))
+	message = pad_message(message)
 	return aes128(message,key,1, False, iv)
 
 def guess_encryption_type(fun):
@@ -63,7 +66,7 @@ def challenge11_guess_black_box(numberOfExperiments):
 		assert(guess == ("CBC" if mode else "ECB"))
 
 # print("Set 2, Challenge 11:")
-# challenge11_guess_black_box(100) # el problema es que cuando toca cbc, la encriptacion genera que el segundo y el tercer bloque sean iguales
+# challenge11_guess_black_box(100)
 # print("ok")
 
 #################################################################################################
@@ -73,10 +76,8 @@ givenText = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciB
 givenText = bits_to_ascii(base64_to_bits(givenText))
 
 def targetEncryptionFunction(message):
-	messageCopy = message + givenText
-	if len(messageCopy) % 16 != 0:
-		messageCopy = challenge9_pad_block(messageCopy,len(messageCopy)+16-(len(messageCopy)%16))
-	return aes128(messageCopy,randomKey,1)
+	paddedMessage = pad_message(message + givenText)
+	return aes128(paddedMessage,randomKey,1)
 
 def find_size_of_cipher(fun):
 	initialLen = len(fun(""))
@@ -90,25 +91,69 @@ def challenge12_find_unknown_string():
 	assert(guess_encryption_type(targetEncryptionFunction) == "ECB")
 	cipherLen = find_size_of_cipher(targetEncryptionFunction)
 	recoveredBytes = []
+	recoveredText = ""
 	for i in range(cipherLen): # this part complies the following invariant: "we already recovered the first i characters of the givenText"
 		print(f"step {i}")
 		assert(i == len(recoveredBytes))
 		blockReminder = (-1-i)%16
 		baitBlock = "A" * blockReminder # Now, baitBlock will have a length such that the baitBlock + the already recovered text is congruent to -1 modulo 16, so we will be able to peel the next character of the givenText analyzing the last block of this part of the message
 		relB = (len(baitBlock)+i)//16 # relB stands for relevantBlock: this is the block we have to look to compare the bait with the actual givenText
-		recoveredText = bytes_to_string(recoveredBytes)
 		baitResult = targetEncryptionFunction(baitBlock)[16*relB:16*(relB+1)]
 		for c in range(256):
 			if targetEncryptionFunction(baitBlock + recoveredText + chr(c))[16*relB:16*(relB+1)] == baitResult:
 				recoveredBytes.append(c)
-				print(bytes_to_string(recoveredBytes))
+				recoveredText = bytes_to_string(recoveredBytes)
+				print(recoveredText)
 				break
-	return bytes_to_string(recoveredBytes)
+	return recoveredText
 
+# print("Set 2, Challenge 12:")
+# expected_s2c12 = "Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n"
+# print("ok" if challenge12_find_unknown_string() == expected_s2c12 else "--------------FAILED--------------")
 
-print("Set 2, Challenge 12:")
-expected_s2c12 = "Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n"
-print("ok" if challenge12_find_unknown_string() == expected_s2c12 else "--------------FAILED--------------")
+#################################################################################################
 
+def parse_profile(encondedUser):
+	parameters = encondedUser.split('&')
+	user = {}
+	for parameter in parameters:
+		p = parameter.split('=')
+		user[p[0]] = p[1]
+	return user
 
-#### TODO: refactorar lo de "rellenar hasta tener len multiplo de 16"
+assert(parse_profile("foo=bar&baz=qux&zap=zazzle") == { 'foo': 'bar', 'baz': 'qux', 'zap': 'zazzle' })
+
+def encode_user(user):
+	vectorizedUser = []
+	for key, value in user.items():
+		vectorizedUser.append(f"{key}={value}")
+	return "&".join(vectorizedUser)
+
+assert(encode_user({ 'foo': 'bar', 'baz': 'qux', 'zap': 'zazzle' }) == "foo=bar&baz=qux&zap=zazzle")
+
+idCounter = 0
+randomKey = "".join([chr(randint(0,255)) for _ in range(16)])
+
+def unencrypted_profile_for(email):
+	sanitizedEmail = email.replace('&','').replace('=','')
+	user = {'email': sanitizedEmail}
+	global idCounter
+	user['uid'] = idCounter
+	idCounter += 1
+	user['role'] = 'user'
+	return encode_user(user)
+
+def profile_for(email):
+	encondedUser = unencrypted_profile_for(email)
+	return aes128(pad_message(encondedUser),randomKey,1)
+
+assert(unencrypted_profile_for("foo@bar.com") == "email=foo@bar.com&uid=0&role=user")
+assert(unencrypted_profile_for("foo@bar.com") == "email=foo@bar.com&uid=1&role=user")
+assert(unencrypted_profile_for("foo@bar.com&role=admin") == "email=foo@bar.comroleadmin&uid=2&role=user")
+
+def decrypt_user(encryptedUser):
+	decryptedUser = aes128(encryptedUser,randomKey,-1)
+	# aca tengo que ver como hago para des-rellenar el user (por que lo tuve que rellenar para encriptarlo)
+
+print("Set 2, Challenge 13:")
+print("ok" if False else "--------------FAILED--------------")
