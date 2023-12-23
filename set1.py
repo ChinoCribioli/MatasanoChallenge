@@ -1,3 +1,5 @@
+TEST = False
+
 oa = ord('a')
 oz = ord('z')
 oA = ord('A')
@@ -51,19 +53,27 @@ def sixBits_to_base64(string):
 		return '/'
 
 def bits_to_base64(bits):
+	assert(len(bits)%2 == 0)
 	answer = ""
 	for i in range(0,len(bits)//6):
 		answer += sixBits_to_base64(bits[6*i:6*(i+1)])
+	if len(bits)%6 == 2:
+		answer += sixBits_to_base64(bits[-2:]+[0,0,0,0])
+		answer += "=="
+	elif len(bits)%6 == 4:
+		answer += sixBits_to_base64(bits[-4:]+[0,0])
+		answer += "="
 	return answer
 
 def challenge1_hex_to_base64(hash):
 	bits = hex_to_bits(hash)
 	return bits_to_base64(bits)
 
-# print("Set 1, Challenge 1:")
-# ans = challenge1_hex_to_base64("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d")
-# expected = "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
-# print("ok" if ans == expected else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 1:")
+	ans = challenge1_hex_to_base64("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d")
+	expected = "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
+	print("ok" if ans == expected else "--------------FAILED--------------")
 
 #############################################################
 
@@ -86,10 +96,11 @@ def challenge2_fixed_XOR(hash1,hash2):
 	finalBits = [bits1[i]^bits2[i] for i in range(len(bits1))]
 	return bits_to_hex(finalBits)
 
-# print("Set 1, Challenge 2:")
-# ans = challenge2_fixed_XOR("1c0111001f010100061a024b53535009181c","686974207468652062756c6c277320657965")
-# expected = "746865206b696420646f6e277420706c6179"
-# print("ok" if ans == expected else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 2:")
+	ans = challenge2_fixed_XOR("1c0111001f010100061a024b53535009181c","686974207468652062756c6c277320657965")
+	expected = "746865206b696420646f6e277420706c6179"
+	print("ok" if ans == expected else "--------------FAILED--------------")
 
 ###############################################################
 
@@ -206,9 +217,9 @@ def challenge3_guess_xor_key(hash):
 	guess = guess_xor_key_by_space(hex_to_bits(hash))
 	return (bits_to_int(guess[0]),bits_to_ascii(guess[1]))
 
-
-# print("Set 1, Challenge 3:")
-# print("ok" if challenge3_guess_xor_key("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736") == (88, "Cooking MC's like a pound of bacon") else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 3:")
+	print("ok" if challenge3_guess_xor_key("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736") == (88, "Cooking MC's like a pound of bacon") else "--------------FAILED--------------")
 
 #########################################################################################
 
@@ -236,17 +247,19 @@ def challenge4_find_message():
 			bestKey = guess[0]
 	return (bestIndex, bits_to_int(bestKey), bits_to_ascii(apply_repeatedXor(hex_to_bits(sentences[bestIndex]),bestKey)))
 	
-# print("Set 1, Challenge 4:")
-# print("ok" if challenge4_find_message() == (170, 53, 'Now that the party is jumping\n') else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 4:")
+	print("ok" if challenge4_find_message() == (170, 53, 'Now that the party is jumping\n') else "--------------FAILED--------------")
 
 ############################################################################################
 
 def challenge5_encrypt_with_repeating_key_xor(message,key):
 	return bits_to_hex(apply_repeatedXor(string_to_bits(message),string_to_bits(key)))
 
-# print("Set 1, Challenge 5:")
-# print("ok" if challenge5_encrypt_with_repeating_key_xor("Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal","ICE")
-# 	== "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f" else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 5:")
+	print("ok" if challenge5_encrypt_with_repeating_key_xor("Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal","ICE")
+		== "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f" else "--------------FAILED--------------")
 
 ###########################################################################################
 
@@ -284,6 +297,10 @@ def base64_to_bits(string):
 			assert(bits[-i] == 0)
 		bits = bits[0:-2]
 	return bits
+
+for test in ["I", "AM", "TJM"]:
+	bits = string_to_bits(test)
+	assert(base64_to_bits(bits_to_base64(bits)) == bits)
 
 def bytes_to_ints(bits):
 	assert(len(bits)%8 == 0)
@@ -388,8 +405,9 @@ def challenge6_break_repeating_key_xor():
 
 expected_s1c6 = ('Terminator X: Bring the noise', "I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n")
 
-# print("Set 1, Challenge 6:")
-# print("ok" if challenge6_break_repeating_key_xor() == expected_s1c6 else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 6:")
+	print("ok" if challenge6_break_repeating_key_xor() == expected_s1c6 else "--------------FAILED--------------")
 
 ###########################################################################################
 
@@ -552,8 +570,8 @@ for j in range(10):
 		encryptionSteps.append(mix_columns)
 	encryptionSteps.append(add_round_key)
 
-def aes128(ciphertext, key, encrypt, ebc = True, ivString = chr(0)*16): # The method expects the text, key and iv in string format
-	# encrypt is 1 if we want to encrypt the message and -1 if we want to decrypt. ebc is True when we want to do EBC mode and False when we want CBC mode.
+def aes128(ciphertext, key, encrypt, ecb = True, ivString = chr(0)*16): # The method expects the text, key and iv in string format
+	# encrypt is 1 if we want to encrypt the message and -1 if we want to decrypt. ecb is True when we want to do ECB mode and False when we want CBC mode.
 	assert(len(key) == 16)
 	assert(encrypt == 1 or encrypt == -1)
 	assert(len(ciphertext)%16 == 0)
@@ -575,7 +593,7 @@ def aes128(ciphertext, key, encrypt, ebc = True, ivString = chr(0)*16): # The me
 				currentKeyIndex += encrypt
 				continue
 			block = step(block,encrypt)
-		if not ebc:
+		if not ecb:
 			block = add_round_key(block,previousBlock[0])
 		previousBlock[0] = previousBlock[1]
 		decryptedMessage += block
@@ -588,10 +606,10 @@ def challenge7_decrypt_message(key):
 	k = bits_to_ascii(string_to_bits(key))
 	return aes128(message,k,-1)
 
-
-# print("Set 1, Challenge 7:")
-# expected_s1c7 = "I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n\x04\x04\x04\x04"
-# print("ok" if challenge7_decrypt_message("YELLOW SUBMARINE") == expected_s1c7 else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 7:")
+	expected_s1c7 = "I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n\x04\x04\x04\x04"
+	print("ok" if challenge7_decrypt_message("YELLOW SUBMARINE") == expected_s1c7 else "--------------FAILED--------------")
 
 # Note: you can decrypt the message with the following command line
 # openssl aes-128-ecb -d -a -in s1c7 -K  $(echo -n "YELLOW SUBMARINE" | hexdump -v -e '/1 "%02X"')
@@ -603,23 +621,26 @@ def challenge7_decrypt_message(key):
 
 ###########################################################################################
 
+def has_repeating_blocks(text):
+	blocks = {}
+	for i in range(len(text)//16):
+		block = bytes_to_string(text[16*i:16*(i+1)])
+		if blocks.get(block) != None :
+			return True
+		blocks[block] = 1
+	return False
+
 def challenge8_find_ecb_encrypted_ciphertext():
 	with open('s1c8') as f:
 	    hexTexts = f.readlines()
 	res = []
 	texts = [bits_to_bytes(hex_to_bits(hexText.replace('\n',''))) for hexText in hexTexts]
 	for t in range(len(texts)):
-		text = texts[t]
-		blocks = {}
-		for i in range(len(text)//16):
-			block = bytes_to_string(text[16*i:16*(i+1)])
-			if blocks.get(block) != None :
-				res.append(t)
-				break
-			blocks[block] = 1
+		if has_repeating_blocks(texts[t]):
+			res.append(t)
 	return res
 
-
-# print("Set 1, Challenge 8:")
-# expected_s1c8 = [132]
-# print("ok" if challenge8_find_ecb_encrypted_ciphertext() == expected_s1c8 else "--------------FAILED--------------")
+if TEST:
+	print("Set 1, Challenge 8:")
+	expected_s1c8 = [132]
+	print("ok" if challenge8_find_ecb_encrypted_ciphertext() == expected_s1c8 else "--------------FAILED--------------")
