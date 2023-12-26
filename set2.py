@@ -136,7 +136,6 @@ def encode_user(user):
 assert(encode_user({ 'foo': 'bar', 'baz': 'qux', 'zap': 'zazzle' }) == "foo=bar&baz=qux&zap=zazzle")
 
 idCounter = 0
-randomKey = "".join([chr(randint(0,255)) for _ in range(16)])
 
 def unencrypted_profile_for(email):
 	sanitizedEmail = email.replace('&','').replace('=','')
@@ -155,10 +154,20 @@ assert(unencrypted_profile_for("foo@bar.com") == "email=foo@bar.com&uid=0&role=u
 assert(unencrypted_profile_for("foo@bar.com") == "email=foo@bar.com&uid=1&role=user")
 assert(unencrypted_profile_for("foo@bar.com&role=admin") == "email=foo@bar.comroleadmin&uid=2&role=user")
 
+def unpad_string(string):
+	if not len(string):
+		return string
+	order = ord(string[-1])
+	if order in range(16): # this may cause to delete unnecessary characters, but we assume that the characters between 0 and 15 will not be used as part of the usernames or roles. For instance, we assume that we cannot have a role "role\n"
+		if string[-order : ] == chr(order)*order:
+			return string[ : -order]
+		else:
+			raise TypeError("Bad padding")
+	return string
+
 def decrypt_user(encryptedUser):
 	decryptedUser = aes128(encryptedUser,randomKey,-1)
-	if ord(decryptedUser[-1]) in range(16): # this may cause to delete unnecessary characters, but we assume that the characters between 0 and 15 will not be used as part of the usernames or roles. For instance, we assume that we cannot have a role "role\n"
-		decryptedUser = decryptedUser[ : -ord(decryptedUser[-1])]
+	decryptedUser = unpad_string(decryptedUser)
 	return parse_profile(decryptedUser)
 
 assert(decrypt_user(profile_for("test@user.com")) == { 'email': 'test@user.com', 'uid': '3', 'role': 'user'} )
@@ -169,7 +178,6 @@ if TEST:
 
 #################################################################################################
 
-randomKey = "".join([chr(randint(0,255)) for _ in range(16)])
 randomPreText = "".join([chr(randint(0,255)) for _ in range(randint(0,100))])
 targetText = "Q29uZ3JhdHMhIE5vdyB5b3Ugc29sdmVkIHRoZSBoYXJkZXIgdmVyc2lvbiBvZiB0aGUgYnl0ZS1hdC1hLXRpbWUgRUNCIGRlY3J5cHRpb24="
 targetText = bits_to_ascii(base64_to_bits(targetText))
@@ -231,4 +239,44 @@ if TEST:
 	print("ok" if challenge14_find_target_string() == expected_s2c14 else "--------------FAILED--------------")
 
 # Note: You can also solve challenge 12 with this code calling find_target_string(targetEncryptionFunction)
+
+#################################################################################################
+
+assert(unpad_string("ICE ICE BABY\x04\x04\x04\x04") == "ICE ICE BABY")
+
+exceptionRaised = False
+try:
+	unpad_string("ICE ICE BABY\x05\x05\x05\x05")
+except TypeError:
+	exceptionRaised = True
+assert(exceptionRaised)
+
+exceptionRaised = False
+try:
+	unpad_string("ICE ICE BABY\x01\x02\x03\x04")
+except TypeError:
+	exceptionRaised = True
+assert(exceptionRaised)
+
+if TEST:
+	print("Set 2, Challenge 15:")
+	print("ok" if True else "--------------FAILED--------------")
+
+#################################################################################################
+
+def c16_encryption_function(message):
+	paddedMessage = pad_message("comment1=cooking%20MCs;userdata=" + message + ";comment2=%20like%20a%20pound%20of%20bacon")
+	# for now I don't know what "The function should quote out the ";" and "=" characters." means
+	return aes128(paddedMessage, randomKey, 1, False)
+
+def find_admin_parameter_in_ciphertext(ciphertext):
+	decryptedMessage = aes128(ciphertext, randomKey, -1, False)
+	parameters = [chunk.split('=') for chunk in decryptedMessage.split(';')]
+	for parameter in parameters:
+		if parameter[0] == "admin" and parameter[1] == "true":
+			return True
+	return False
+
+assert(not find_admin_parameter_in_ciphertext(c16_encryption_function(";admin=true")))
+assert(not find_admin_parameter_in_ciphertext(c16_encryption_function("rubbish;admin=true")))
 
