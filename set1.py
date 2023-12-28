@@ -1,4 +1,5 @@
 TEST = False
+# TEST = True
 
 oa = ord('a')
 oz = ord('z')
@@ -580,11 +581,12 @@ def aes128(ciphertext, key, encrypt, ecb = True, ivString = chr(0)*16): # The me
 	iv = bits_to_bytes(string_to_bits(ivString))
 	roundKeys = generate_round_keys(k)
 	decryptedMessage = []
-	previousBlock = [iv,[]]
+	previousBlock = iv
 	iterator = range(len(encryptionSteps)) if encrypt == 1 else range(len(encryptionSteps)-1,-1,-1)
 	for i in range(len(message)//16):
 		block = message[16*i:16*(i+1)]
-		previousBlock[1] = block
+		if not ecb and encrypt == 1:
+			block = add_round_key(block,previousBlock)
 		currentKeyIndex = 0 if encrypt == 1 else 10
 		for f in iterator:
 			step = encryptionSteps[f]
@@ -593,11 +595,16 @@ def aes128(ciphertext, key, encrypt, ecb = True, ivString = chr(0)*16): # The me
 				currentKeyIndex += encrypt
 				continue
 			block = step(block,encrypt)
-		if not ecb:
-			block = add_round_key(block,previousBlock[0])
-		previousBlock[0] = previousBlock[1]
+		if not ecb and encrypt == -1:
+			block = add_round_key(block,previousBlock)
+		previousBlock = block if encrypt == 1 else message[16*i:16*(i+1)]
 		decryptedMessage += block
 	return bytes_to_string(decryptedMessage)
+
+testMessage = "aadfdsfnakjdsncakjdhre1234567890aadfdsfnakjdsncakjdhre1234567890"
+testEncryption = aes128(testMessage,"ThisIsARandomKey",1,False)
+assert(aes128(testEncryption,"ThisIsARandomKey",-1,False) == testMessage)
+assert(testEncryption[0:32] != testEncryption[32:64])
 
 def challenge7_decrypt_message(key):
 	with open('s1c7') as f:
